@@ -1,0 +1,22 @@
+# bMOI Landing Page - Docker Compose Development
+
+version: '3.8'
+
+services:
+  landing-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: bmoi-landing-dev
+    ports:
+      - "4321:4321"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - PUBLIC_API_URL=${PUBLIC_API_URL:-https://api.bmoi.com}
+      - PUBLIC_APP_URL=${PUBLIC_APP_URL:-https://app.bmoi.com}
+      - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:-https://bmoi.com}
+    command: npm run dev
+    restart: unless-stopped

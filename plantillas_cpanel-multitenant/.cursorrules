@@ -1,0 +1,76 @@
+# Cursor AI Rules - bMOI CPanel Multi-Tenant BO
+
+## Proyecto
+- Nombre: bMOI CPanel Multi-Tenant BO
+- Stack: React 18 + TypeScript 5 + Vite 5
+- Arquitectura: Multi-Tenant con aislamiento de datos
+- Entorno: Docker (OBLIGATORIO)
+
+## 🐳 Desarrollo con Docker
+
+⚠️ TODO el desarrollo se hace en Docker:
+
+```bash
+# ✅ SIEMPRE
+docker compose --profile dev up -d
+docker compose exec frontend-dev npm install [package]
+
+# ❌ NUNCA
+npm install
+npm run dev
+```
+
+## Convenciones OBLIGATORIAS
+
+### Nomenclatura
+- Variables y funciones: camelCase (userName, getUserData)
+- Componentes React: PascalCase (UserProfile, TenantDashboard)
+- Hooks: use + camelCase (useAuth, useTenant)
+- Constantes: UPPER_SNAKE_CASE (API_BASE_URL, MAX_RETRIES)
+- Interfaces: I + PascalCase (IUser, ITenant)
+- ❌ PROHIBIDO: snake_case en JavaScript/TypeScript
+
+### TypeScript
+- NO usar `any` type sin justificación
+- Usar interfaces con prefijo I
+- Tipos específicos siempre
+
+### Multi-Tenant
+- SIEMPRE verificar currentTenant antes de queries
+- Query keys DEBEN incluir tenant.id
+- Validar permisos con hasPermission()
+- Header X-Tenant-ID automático (via interceptor)
+
+## Paleta de Colores
+- Primary: #2563EB (Blue-600)
+- Secondary: #7C3AED (Violet-600)
+- Success: #059669
+- Warning: #D97706
+- Danger: #DC2626
+
+## Imports (orden estricto)
+1. React
+2. Librerías externas
+3. Componentes internos
+4. Hooks
+5. Services
+6. Types
+7. Estilos
+
+## Testing
+- Cobertura mínima: 80%
+- Tests con tenant context
+- NO usar any en mocks
+
+## Documentos Críticos
+Leer antes de programar:
+- PROJECT_INSTRUCTIONS.md
+- CODING_STANDARDS.md
+- .claude/context.md
+
+## Prohibiciones
+- ❌ snake_case en JS/TS
+- ❌ any type
+- ❌ console.log en producción
+- ❌ Queries sin tenant.id
+- ❌ Componentes > 300 líneas

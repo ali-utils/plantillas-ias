@@ -1,0 +1,102 @@
+# Cursor AI Rules - bMOI Backend API Multi-Tenant
+
+## Proyecto
+- Nombre: bMOI Backend API Multi-Tenant
+- Framework: NestJS 10 + TypeScript 5
+- Database: PostgreSQL 15 con Row-Level Security
+- Cache: Redis 7
+- ORM: Prisma
+- Entorno: Docker (OBLIGATORIO)
+
+## 🐳 Desarrollo con Docker
+
+⚠️ TODO el desarrollo se hace en Docker:
+
+```bash
+# ✅ SIEMPRE
+docker compose up -d
+docker compose exec backend npm install [package]
+docker compose exec backend npx prisma migrate dev
+
+# ❌ NUNCA
+npm install
+npm run start:dev
+```
+
+## Convenciones OBLIGATORIAS
+
+### Nomenclatura
+- Archivos: kebab-case (users.controller.ts, create-user.dto.ts)
+- Clases: PascalCase (UsersController, CreateUserDto)
+- Métodos y variables: camelCase (findAll, currentTenant)
+- Constantes: UPPER_SNAKE_CASE (JWT_SECRET, DATABASE_URL)
+- Enums: PascalCase (UserRole, PlanType)
+- ❌ PROHIBIDO: snake_case en TypeScript
+
+### Multi-Tenant (CRÍTICO)
+- SIEMPRE usar @UseGuards(JwtAuthGuard, TenantGuard)
+- SIEMPRE @UseInterceptors(TenantInterceptor)
+- SIEMPRE set PostgreSQL session para RLS:
+  ```typescript
+  await this.prisma.$executeRaw`
+    SELECT set_config('app.current_tenant_id', ${tenantId}, true)
+  `
+  ```
+- SIEMPRE incluir tenant_id en inserts
+- NUNCA queries sin tenant context
+
+### TypeScript
+- NO usar `any` type (usar unknown o tipos específicos)
+- Todos los DTOs con class-validator
+- Todos los endpoints con Swagger decorators
+
+### Seguridad
+- JWT con RS256 (asymmetric)
+- Passwords con bcrypt (10 rounds)
+- NUNCA retornar passwords en responses
+- Validar permisos con @RequirePermission()
+- Validar límites con @CheckPlanLimit()
+
+## Estructura de Módulos
+
+```
+src/modules/resource/
+├── resource.module.ts
+├── resource.controller.ts
+├── resource.service.ts
+├── dto/
+│   ├── create-resource.dto.ts
+│   └── update-resource.dto.ts
+├── entities/
+│   └── resource.entity.ts
+└── tests/
+    ├── resource.controller.spec.ts
+    └── resource.service.spec.ts
+```
+
+## Testing
+- Coverage mínimo: 80%
+- Unit tests para services
+- E2E tests para endpoints críticos
+- Mock PrismaService en tests
+
+## Logging
+- Usar Logger de NestJS (NO console.log)
+- Logger por clase: `private readonly logger = new Logger(ClassName.name)`
+
+## Documentos Críticos
+Leer antes de programar:
+- PROJECT_INSTRUCTIONS.md
+- CODING_STANDARDS.md
+- BACKEND_ARCHITECTURE.md
+- .claude/context.md
+- .claude/conventions.md
+
+## Prohibiciones
+- ❌ snake_case en TypeScript
+- ❌ any type
+- ❌ console.log en producción
+- ❌ Queries sin tenant_id
+- ❌ Passwords en responses
+- ❌ Controllers > 300 líneas
+- ❌ Hardcodear secrets

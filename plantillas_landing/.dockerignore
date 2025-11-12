@@ -1,0 +1,41 @@
+# Node
+node_modules/
+npm-debug.log
+
+# Build
+dist/
+.astro/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+
+# Documentation
+README.md
+README_PLANTILLAS.md
+.docs/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+*.log

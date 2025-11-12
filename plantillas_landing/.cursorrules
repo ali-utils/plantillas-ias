@@ -1,0 +1,455 @@
+# Cursor AI Rules - bMOI Landing Page
+
+## Project Identity
+- Project: bMOI Landing Page
+- Framework: Astro 4 + TypeScript 5 + Tailwind CSS 4
+- Type: Static Site Generation (SSG)
+- Deployment: AWS S3 + CloudFront (or Netlify/Vercel)
+- Purpose: Marketing website to attract and convert visitors
+
+## Core Principles
+
+1. **Static First**: This is a static site (SSG), NOT a web application. No SSR, no API routes in Astro.
+2. **Performance Critical**: Target 95+ Lighthouse score. Every byte matters.
+3. **SEO Critical**: Proper meta tags, schema markup, sitemap are mandatory.
+4. **Mobile First**: Responsive design is not optional.
+5. **Minimal JavaScript**: Use Astro components (0 JS). Only use islands for truly interactive features.
+6. **Type Safety**: TypeScript everywhere. Never use `any` type.
+
+## Mandatory File Naming
+
+### Files
+- Astro components: `PascalCase.astro` (e.g., `Header.astro`, `Hero.astro`)
+- Pages: `kebab-case.astro` (e.g., `index.astro`, `privacy-policy.astro`)
+- Content: `kebab-case.md` (e.g., `getting-started.md`)
+- Utilities: `kebab-case.ts` (e.g., `format-date.ts`)
+- React/Vue islands: `PascalCase.tsx` or `.vue` (e.g., `ContactForm.tsx`)
+
+### Code
+- Variables/Functions: `camelCase` (e.g., `const userName`, `function formatDate()`)
+- Constants: `UPPER_SNAKE_CASE` (e.g., `const API_URL`, `const MAX_RETRIES`)
+- Classes/Types: `PascalCase` (e.g., `interface BlogPost`, `class ApiClient`)
+- **NEVER use snake_case** in TypeScript code
+
+## Code Standards
+
+### Astro Component Structure
+
+```astro
+---
+// 1. Imports (Astro → External → Internal → Types → Styles)
+import { Image } from 'astro:assets';
+import Header from '@/components/Header.astro';
+import type { Props } from '@/types';
+
+// 2. Props interface
+interface Props {
+  title: string;
+  description?: string;
+}
+
+// 3. Props destructuring
+const { title, description } = Astro.props;
+
+// 4. Logic
+const currentYear = new Date().getFullYear();
+---
+
+<!-- 5. Template -->
+<div class="container mx-auto px-4 py-12">
+  <h1>{title}</h1>
+  {description && <p>{description}</p>}
+</div>
+
+<!-- 6. Scoped styles (optional) -->
+<style>
+  /* Component styles */
+</style>
+```
+
+### TypeScript
+
+```typescript
+// ✅ Always type props
+interface Props {
+  title: string;
+  items: BlogPost[];
+  variant?: 'primary' | 'secondary';
+}
+
+// ✅ Always type functions
+function formatDate(date: Date): string {
+  return date.toLocaleDateString();
+}
+
+// ✅ Use async/await, not .then()
+const posts = await getCollection('blog');
+
+// ❌ NEVER use any
+function fetchData(): any {}  // WRONG!
+```
+
+### Styling (Tailwind CSS)
+
+```astro
+<!-- ✅ Use Tailwind utility classes -->
+<div class="container mx-auto px-4 py-12">
+  <h1 class="text-4xl font-bold text-gray-900 mb-4">Title</h1>
+  <button class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
+    Click me
+  </button>
+</div>
+
+<!-- ✅ Responsive design -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  <!-- Mobile: 1 col, Tablet: 2 cols, Desktop: 3 cols -->
+</div>
+
+<!-- ❌ Avoid inline styles -->
+<div style="color: blue;">Bad</div>
+```
+
+## Imports & Path Aliases
+
+```typescript
+// ✅ ALWAYS use @/ alias for absolute imports
+import Header from '@/components/Header.astro';
+import { formatDate } from '@/utils/format-date';
+import type { BlogPost } from '@/types/content-types';
+
+// ❌ NEVER use relative imports across folders
+import Header from '../../../components/Header.astro';  // BAD!
+```
+
+## Performance Rules
+
+### Images
+
+```astro
+---
+import { Image } from 'astro:assets';
+import heroImage from '@/assets/hero.jpg';
+---
+
+<!-- ✅ Use Astro Image component (auto-optimized) -->
+<Image
+  src={heroImage}
+  alt="Descriptive text"
+  width={1200}
+  height={600}
+  loading="lazy"
+  format="webp"
+/>
+
+<!-- ❌ Don't use plain <img> for local images -->
+<img src="/images/hero.jpg" alt="Hero" />
+```
+
+### JavaScript (Islands Architecture)
+
+```astro
+---
+// ✅ Static components (0 JS shipped)
+import Header from '@/components/Header.astro';
+import Footer from '@/components/Footer.astro';
+
+// ✅ Interactive islands (only when needed)
+import ContactForm from '@/components/ContactForm.tsx';
+---
+
+<!-- Static (no hydration) -->
+<Header />
+
+<!-- Interactive (hydrates client-side) -->
+<ContactForm client:load />
+<Newsletter client:idle />
+<LazySection client:visible />
+
+<!-- ❌ Don't hydrate static components -->
+<Header client:load />  <!-- WRONG! No interactivity needed -->
+```
+
+**Client directives:**
+- `client:load` - Critical interactivity (forms, modals)
+- `client:idle` - Non-critical interactivity (newsletter, chat)
+- `client:visible` - Below-fold content (testimonials, blog grid)
+
+## SEO Requirements
+
+### Every page MUST have:
+
+```astro
+---
+const title = 'Page Title';
+const description = 'Page description 120-160 characters';
+const ogImage = '/images/og-image.jpg';
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
+---
+
+<head>
+  <!-- Basic -->
+  <title>{title} | bMOI</title>
+  <meta name="description" content={description} />
+  <link rel="canonical" href={canonicalUrl} />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content={title} />
+  <meta property="og:description" content={description} />
+  <meta property="og:image" content={ogImage} />
+  <meta property="og:url" content={canonicalUrl} />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content={title} />
+  <meta name="twitter:description" content={description} />
+</head>
+```
+
+### Schema.org Markup
+
+```astro
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "bMOI",
+  "url": "https://bmoi.com",
+  "logo": "https://bmoi.com/logo.png"
+}
+</script>
+```
+
+## Accessibility Requirements
+
+```astro
+<!-- ✅ Semantic HTML -->
+<header>
+  <nav aria-label="Main navigation">
+    <ul>
+      <li><a href="/">Home</a></li>
+    </ul>
+  </nav>
+</header>
+
+<!-- ✅ Alt text for all images -->
+<Image src={image} alt="Descriptive alternative text" />
+
+<!-- ✅ ARIA labels for icon buttons -->
+<button aria-label="Close menu">
+  <IconX />
+</button>
+
+<!-- ✅ Focus states for keyboard navigation -->
+<a href="/features" class="focus:ring-2 focus:ring-blue-500 focus:outline-none">
+  Features
+</a>
+
+<!-- ✅ Proper heading hierarchy -->
+<h1>Main Title</h1>
+<h2>Section Title</h2>
+<h3>Subsection</h3>
+```
+
+## Content Collections
+
+```typescript
+// src/content/config.ts
+import { defineCollection, z } from 'astro:content';
+
+const blogCollection = defineCollection({
+  type: 'content',
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    publishedAt: z.date(),
+    author: z.string(),
+    tags: z.array(z.string()).optional(),
+    draft: z.boolean().default(false),
+  }),
+});
+
+export const collections = {
+  blog: blogCollection,
+};
+```
+
+```astro
+---
+// src/pages/blog/[slug].astro
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog', ({ data }) => {
+    return data.draft !== true;  // Exclude drafts
+  });
+
+  return posts.map(post => ({
+    params: { slug: post.slug },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const { Content } = await post.render();
+---
+
+<article>
+  <h1>{post.data.title}</h1>
+  <time>{post.data.publishedAt.toLocaleDateString()}</time>
+  <Content />
+</article>
+```
+
+## Environment Variables
+
+```typescript
+// ✅ Access with import.meta.env
+const apiUrl = import.meta.env.PUBLIC_API_URL;
+const gaId = import.meta.env.PUBLIC_GA_ID;
+
+// ✅ Type definitions (src/env.d.ts)
+interface ImportMetaEnv {
+  readonly PUBLIC_API_URL: string;
+  readonly PUBLIC_APP_URL: string;
+  readonly PUBLIC_GA_ID: string;
+}
+```
+
+**Important:** Only `PUBLIC_*` variables are accessible in client-side code!
+
+## Common Mistakes to Avoid
+
+### ❌ NEVER
+
+```typescript
+// ❌ No server-side rendering (SSR)
+export const GET = () => {};  // WRONG! This is SSG only
+
+// ❌ No snake_case in TypeScript
+const api_url = 'https://...';
+const user_name = 'John';
+
+// ❌ No any types
+function fetchData(): any {}
+
+// ❌ No console.log in production
+console.log('Debug:', data);
+
+// ❌ Don't hydrate static components
+<Header client:load />  // Static component!
+
+// ❌ No unnecessary React
+<div onClick={() => alert('hi')}>  // Use <button> + form action!
+```
+
+### ✅ ALWAYS
+
+```typescript
+// ✅ Use static generation
+export async function getStaticPaths() {}
+
+// ✅ Use camelCase
+const apiUrl = 'https://...';
+const userName = 'John';
+
+// ✅ Type everything
+function fetchData(): Promise<BlogPost[]> {}
+
+// ✅ Only hydrate interactive components
+<ContactForm client:load />
+
+// ✅ Use native HTML when possible
+<form action="/api/contact" method="post">
+  <button type="submit">Send</button>
+</form>
+```
+
+## Testing Standards
+
+### Lighthouse Targets
+- **Performance:** 95+
+- **Accessibility:** 100
+- **Best Practices:** 100
+- **SEO:** 100
+
+### Before Committing
+1. Run `npm run build` - Must build without errors
+2. Check Lighthouse scores - Must meet targets
+3. Test on mobile - Responsive design works
+4. Verify SEO - Meta tags, schema markup present
+5. Check accessibility - Keyboard navigation, screen reader friendly
+
+## Project Structure
+
+```
+src/
+├── components/       # Reusable UI (PascalCase.astro)
+├── content/          # Markdown/MDX (kebab-case.md)
+├── layouts/          # Page layouts (PascalCase.astro)
+├── pages/            # Routes (kebab-case.astro, [slug].astro)
+├── styles/           # Global CSS (kebab-case.css)
+├── utils/            # Utilities (kebab-case.ts)
+└── types/            # TypeScript types (kebab-case.ts)
+```
+
+## Integration with bMOI Ecosystem
+
+```typescript
+// Sign-up form submission
+async function handleSignUp(formData: FormData) {
+  const response = await fetch(`${API_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: formData.get('email'),
+      password: formData.get('password'),
+      companyName: formData.get('companyName'),
+      plan: formData.get('plan'),
+    }),
+  });
+
+  if (response.ok) {
+    window.location.href = `${APP_URL}/dashboard?new=true`;
+  }
+}
+```
+
+## Git Commit Messages
+
+Use Conventional Commits format:
+
+```bash
+feat: add hero section with CTA
+fix: correct mobile navigation menu
+docs: update README with setup instructions
+style: format code with Prettier
+perf: optimize image loading
+```
+
+## Documentation References
+
+**Before implementing, read:**
+1. `.claude/context.md` - Complete project context
+2. `.claude/conventions.md` - Detailed naming conventions
+3. `.docs/CODING_STANDARDS.md` - Coding standards with examples
+4. `.docs/EJEMPLOS_CODIGO.md` - Code examples
+
+## AI Assistant Memory
+
+**Always remember:**
+- This is **Astro 4** (NOT Next.js, NOT React SPA)
+- This is **SSG** (Static Site Generation), NOT SSR
+- **TypeScript 5** - Full type safety, no `any`
+- **Tailwind CSS** - Utility-first styling
+- **Performance first** - 95+ Lighthouse score
+- **SEO critical** - Meta tags mandatory
+- **Mobile-first** - Responsive design required
+- **Minimal JS** - Islands Architecture
+
+**Project type:** Static marketing landing page
+**Deployment:** S3 + CloudFront (or Netlify/Vercel)
+**Content:** Markdown/MDX files (not database)
+
+---
+
+For detailed documentation, see `.claude/context.md` and `.docs/` folder.

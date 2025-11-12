@@ -1,0 +1,455 @@
+# Cursor AI Rules - bMOI Admin Web
+
+Estás trabajando en el **bMOI Admin Web**, un panel de administración multi-tenant con React 18 + TypeScript 5 + Vite.
+
+---
+
+## 🎯 Stack Tecnológico
+
+- **Frontend:** React 18 + TypeScript 5 (strict mode)
+- **Build:** Vite 5
+- **Router:** React Router 6
+- **State:** Zustand (client) + React Query (server)
+- **Forms:** React Hook Form + Zod
+- **UI:** Tailwind CSS + Shadcn/UI
+- **HTTP:** Axios con interceptors
+- **Testing:** Vitest + React Testing Library
+
+---
+
+## 📏 Convenciones OBLIGATORIAS
+
+### Nomenclatura de Archivos
+
+```
+UserCard.tsx              # Componentes: PascalCase
+use-users.ts              # Hooks: kebab-case + prefijo "use"
+users.service.ts          # Services: kebab-case + ".service"
+date-utils.ts             # Utils: kebab-case
+user.types.ts             # Types: kebab-case + ".types"
+```
+
+### Nomenclatura de Código
+
+```typescript
+// Componentes: PascalCase
+export const UserCard = () => { };
+
+// Variables y funciones: camelCase
+const userName = 'John';
+const handleSubmit = () => { };
+
+// Constantes: UPPER_SNAKE_CASE
+const MAX_USERS = 100;
+const API_BASE_URL = 'https://api.bmoi.com';
+
+// Interfaces: PascalCase SIN prefijo "I"
+interface UserCardProps {
+  user: User;
+  onEdit: (user: User) => void;
+}
+
+// Hooks: prefijo "use" + camelCase
+export const useAuth = () => { };
+```
+
+---
+
+## 🧩 Templates de Código
+
+### Componente React
+
+```typescript
+import React from 'react';
+import { Button } from '@/components/ui/button';
+import type { User } from '@/types/user.types';
+
+interface UserCardProps {
+  user: User;
+  onEdit: (user: User) => void;
+}
+
+export const UserCard = ({ user, onEdit }: UserCardProps) => {
+  const handleEdit = () => {
+    onEdit(user);
+  };
+
+  return (
+    <div className="rounded-lg border p-4">
+      <h3 className="text-lg font-semibold">{user.name}</h3>
+      <p className="text-gray-600">{user.email}</p>
+      <Button onClick={handleEdit}>Edit</Button>
+    </div>
+  );
+};
+```
+
+### Custom Hook
+
+```typescript
+import { useState, useCallback } from 'react';
+
+interface UsePaginationOptions {
+  totalItems: number;
+  itemsPerPage?: number;
+}
+
+export const usePagination = ({ totalItems, itemsPerPage = 10 }: UsePaginationOptions) => {
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const goToPage = useCallback((page: number) => {
+    setCurrentPage(page);
+  }, []);
+
+  return {
+    currentPage,
+    goToPage,
+  };
+};
+```
+
+### Service
+
+```typescript
+import { apiClient } from './api-client';
+import type { User, CreateUserDto } from '@/types/user.types';
+
+export const usersService = {
+  async getAll(): Promise<User[]> {
+    const response = await apiClient.get<User[]>('/users');
+    return response.data;
+  },
+
+  async create(data: CreateUserDto): Promise<User> {
+    const response = await apiClient.post<User>('/users', data);
+    return response.data;
+  },
+};
+```
+
+### React Query Hook
+
+```typescript
+import { useQuery } from '@tanstack/react-query';
+import { usersService } from '@/services/users.service';
+
+export const useUsers = () => {
+  return useQuery({
+    queryKey: ['users'],
+    queryFn: usersService.getAll,
+    staleTime: 5 * 60 * 1000,
+  });
+};
+```
+
+### Form con React Hook Form + Zod
+
+```typescript
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+
+const createUserSchema = z.object({
+  name: z.string().min(3),
+  email: z.string().email(),
+});
+
+type CreateUserFormData = z.infer<typeof createUserSchema>;
+
+export const UserForm = ({ onSubmit }: { onSubmit: (data: CreateUserFormData) => void }) => {
+  const form = useForm<CreateUserFormData>({
+    resolver: zodResolver(createUserSchema),
+  });
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <Input {...form.register('name')} />
+      {form.formState.errors.name && (
+        <span>{form.formState.errors.name.message}</span>
+      )}
+      <Button type="submit">Submit</Button>
+    </form>
+  );
+};
+```
+
+---
+
+## 🚨 Reglas ESTRICTAS
+
+### TypeScript
+
+1. **NUNCA usar `any`** → Usar tipos específicos o `unknown`
+2. **SIEMPRE tipar props** de componentes con interface
+3. **SIEMPRE tipar** funciones con parámetros y return type
+
+```typescript
+// ❌ MAL
+const handleSubmit = (data: any) => { };
+
+// ✅ BIEN
+interface FormData {
+  email: string;
+  password: string;
+}
+const handleSubmit = (data: FormData): void => { };
+```
+
+### Componentes
+
+4. **NUNCA inline functions en JSX** (performance)
+5. **SIEMPRE manejar loading y error states**
+6. **SIEMPRE usar path alias `@/`** (no paths relativos)
+
+```typescript
+// ❌ MAL
+<Button onClick={() => handleEdit(user)}>Edit</Button>
+import { Button } from '../../../components/ui/button';
+
+// ✅ BIEN
+const handleEditClick = () => handleEdit(user);
+<Button onClick={handleEditClick}>Edit</Button>
+import { Button } from '@/components/ui/button';
+```
+
+### Multi-Tenant
+
+7. **TODAS las requests incluyen X-Tenant-ID** (el interceptor lo hace automáticamente)
+8. **Verificar tenant seleccionado** en páginas principales
+
+```typescript
+const UsersPage = () => {
+  const selectedTenantId = useAuthStore((state) => state.selectedTenantId);
+
+  if (!selectedTenantId) {
+    return <div>Please select a tenant</div>;
+  }
+
+  // ...
+};
+```
+
+### Imports
+
+9. **Orden estricto de imports:**
+
+```typescript
+// 1. React y React libraries
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+// 2. External libraries
+import { useQuery } from '@tanstack/react-query';
+
+// 3. UI Components
+import { Button } from '@/components/ui/button';
+
+// 4. Internal components
+import { UserCard } from '@/components/organisms/UserCard';
+
+// 5. Hooks
+import { useAuth } from '@/hooks/use-auth';
+
+// 6. Services
+import { usersService } from '@/services/users.service';
+
+// 7. Stores
+import { useAuthStore } from '@/stores/auth.store';
+
+// 8. Utils
+import { formatDate } from '@/lib/date-utils';
+
+// 9. Types
+import type { User } from '@/types/user.types';
+
+// 10. Styles (last)
+import styles from './Component.module.css';
+```
+
+### Forms
+
+10. **SIEMPRE usar Zod** para validación
+11. **React Hook Form** para gestión de formularios
+
+### Estilos
+
+12. **SIEMPRE usar Tailwind CSS** (no inline styles)
+13. **Usar helper `cn()`** para clases condicionales
+
+```typescript
+import { cn } from '@/lib/utils';
+
+<Button
+  className={cn(
+    'rounded-md px-4 py-2',
+    isPrimary && 'bg-blue-500 text-white'
+  )}
+/>
+```
+
+### Permisos
+
+14. **Verificar permisos** para acciones sensibles
+
+```typescript
+const { hasPermission } = usePermissions();
+
+{hasPermission('users.create') && (
+  <Button onClick={handleCreate}>Create User</Button>
+)}
+```
+
+### Testing
+
+15. **Escribir tests** para nueva funcionalidad
+16. **Usar Vitest + React Testing Library**
+
+---
+
+## 📂 Estructura de Carpetas
+
+```
+src/
+├── components/
+│   ├── ui/              # Shadcn/UI components
+│   ├── atoms/           # Componentes básicos
+│   ├── molecules/       # Agrupaciones simples
+│   └── organisms/       # Componentes complejos
+├── pages/               # Páginas enrutables
+├── layouts/             # Layouts reutilizables
+├── hooks/               # Custom hooks
+│   ├── queries/         # React Query hooks
+│   └── mutations/       # React Query mutations
+├── services/            # API services
+├── stores/              # Zustand stores
+├── types/               # TypeScript types
+├── lib/                 # Utils y helpers
+├── router/              # React Router config
+└── styles/              # CSS global
+```
+
+---
+
+## 🔒 Seguridad
+
+### JWT y Headers
+
+- El interceptor de Axios ya agrega automáticamente:
+  - `Authorization: Bearer {token}`
+  - `X-Tenant-ID: {tenantId}`
+
+### Validación
+
+- **SIEMPRE validar inputs** con Zod
+- **NUNCA confiar** en datos del usuario
+
+---
+
+## ⚡ Performance
+
+### Optimizaciones
+
+- Usar `React.memo` para componentes costosos
+- Usar `useMemo` para cálculos derivados
+- Usar `useCallback` para funciones en dependencias
+- Lazy loading de rutas con `React.lazy`
+
+```typescript
+// Lazy loading
+const UsersPage = lazy(() => import('@/pages/users/UsersPage'));
+
+// React.memo
+export const UserCard = React.memo(({ user }: UserCardProps) => {
+  // ...
+});
+
+// useMemo
+const sortedUsers = useMemo(
+  () => users.sort((a, b) => a.name.localeCompare(b.name)),
+  [users]
+);
+
+// useCallback
+const handleEdit = useCallback((user: User) => {
+  updateUser(user);
+}, [updateUser]);
+```
+
+---
+
+## 🧪 Testing
+
+### Test Template
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { UserCard } from '../UserCard';
+
+describe('UserCard', () => {
+  it('should render user information', () => {
+    const mockUser = {
+      id: '1',
+      name: 'John Doe',
+      email: 'john@example.com',
+    };
+
+    render(<UserCard user={mockUser} onEdit={vi.fn()} />);
+
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+  });
+});
+```
+
+---
+
+## 📚 Recursos
+
+### Documentación del Proyecto
+- `.claude/context.md` - Contexto completo
+- `.claude/conventions.md` - Convenciones detalladas
+- `.docs/CODING_STANDARDS.md` - Estándares de código
+- `.docs/EJEMPLOS_CODIGO.md` - Ejemplos completos
+- `.docs/SETUP_INICIAL.md` - Setup paso a paso
+
+### Documentación Externa
+- React: https://react.dev/
+- TypeScript: https://www.typescriptlang.org/
+- Vite: https://vitejs.dev/
+- React Router: https://reactrouter.com/
+- TanStack Query: https://tanstack.com/query/latest
+- Zustand: https://zustand-demo.pmnd.rs/
+- Tailwind CSS: https://tailwindcss.com/
+- Shadcn/UI: https://ui.shadcn.com/
+
+---
+
+## 🎯 Checklist Rápido
+
+Antes de cada commit:
+
+- [ ] Sin `any` en TypeScript
+- [ ] Props tipadas con interface
+- [ ] Handlers declarados fuera del JSX
+- [ ] Loading y error states manejados
+- [ ] Imports con alias `@/`
+- [ ] Orden de imports correcto
+- [ ] Validación con Zod en formularios
+- [ ] Tailwind CSS para estilos
+- [ ] Tests escritos
+- [ ] Sin console.log
+- [ ] Sin código comentado
+- [ ] Sin imports no usados
+
+---
+
+<div align="center">
+
+**Cursor AI configurado para bMOI Admin Web**
+
+Sigue estas reglas estrictamente para mantener la calidad del código
+
+</div>

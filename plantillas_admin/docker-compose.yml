@@ -1,0 +1,182 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # FRONTEND - Admin Web (Development)
+  # ============================================
+  frontend:
+    container_name: bmoi-admin-web-dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"  # Vite dev server
+    volumes:
+      - .:/app
+      - /app/node_modules  # Prevent overwriting node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:3000/api/v1}
+      - VITE_APP_NAME=${VITE_APP_NAME:-bMOI Admin}
+      - VITE_APP_VERSION=${VITE_APP_VERSION:-1.0.0}
+    command: npm run dev -- --host 0.0.0.0
+    networks:
+      - bmoi-network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================
+  # BACKEND - API Gateway (From backend repo)
+  # ============================================
+  backend:
+    container_name: bmoi-backend-api
+    image: bmoi-backend-api:latest  # Build from backend repo first
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ACCESS_EXPIRATION=15m
+      - JWT_REFRESH_EXPIRATION=7d
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    networks:
+      - bmoi-network
+    depends_on:
+      - postgres
+      - redis
+    profiles:
+      - full  # Only start when using --profile full
+
+  # ============================================
+  # DATABASE - PostgreSQL 15
+  # ============================================
+  postgres:
+    container_name: bmoi-postgres
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-bmoi_db}
+      - POSTGRES_USER=${POSTGRES_USER:-bmoi}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-bmoi_password_dev}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - bmoi-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bmoi}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - full
+
+  # ============================================
+  # CACHE - Redis 7
+  # ============================================
+  redis:
+    container_name: bmoi-redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_password_dev}
+    volumes:
+      - redis-data:/data
+    networks:
+      - bmoi-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - full
+
+  # ============================================
+  # OBJECT STORAGE - MinIO (S3 Compatible)
+  # ============================================
+  # For storing KYC documents, evidences, moderation images
+  minio:
+    container_name: bmoi-minio
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"  # S3 API
+      - "9001:9001"  # Web Console
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - bmoi-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - full
+
+  # ============================================
+  # EVENT STREAMING - NATS
+  # ============================================
+  # For real-time notifications, event-driven architecture
+  nats:
+    container_name: bmoi-nats
+    image: nats:alpine
+    ports:
+      - "4222:4222"  # Client connections
+      - "8222:8222"  # HTTP monitoring
+      - "6222:6222"  # Cluster routing
+    networks:
+      - bmoi-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    profiles:
+      - full
+
+  # ============================================
+  # SEARCH ENGINE - Meilisearch
+  # ============================================
+  # For full-text search on users, orders, disputes
+  meilisearch:
+    container_name: bmoi-meilisearch
+    image: getmeili/meilisearch:latest
+    ports:
+      - "7700:7700"
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-masterKey_dev_only}
+      MEILI_ENV: development
+    volumes:
+      - meilisearch-data:/meili_data
+    networks:
+      - bmoi-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    profiles:
+      - full
+
+networks:
+  bmoi-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  meilisearch-data:

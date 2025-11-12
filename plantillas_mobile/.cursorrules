@@ -1,0 +1,452 @@
+# Cursor AI Rules - bMOI Mobile App
+
+## Project Identity
+- Project: bMOI Mobile App
+- Framework: Flutter 3.19+ + Dart 3.3+
+- Architecture: Clean Architecture (Feature-First)
+- State Management: Riverpod 2.5+
+- Purpose: Cross-platform mobile app (iOS + Android) for bMOI platform
+
+## Core Principles
+
+1. **Clean Architecture**: Strict separation (Data → Domain → Presentation)
+2. **Feature-First**: Organize by feature, not by layer
+3. **Type Safety**: Always type everything, use Dart null safety
+4. **Offline-First**: Cache data locally, sync when online
+5. **Multi-Tenant**: Auto-inject X-Tenant-ID header in all API requests
+6. **Testing**: Aim for 80% code coverage (unit + widget + integration)
+
+## Mandatory File Naming
+
+### Files: snake_case
+```dart
+✅ CORRECT:
+lib/features/auth/presentation/screens/login_screen.dart
+lib/features/products/data/models/product_model.dart
+lib/core/network/api_client.dart
+lib/shared/widgets/custom_button.dart
+
+❌ INCORRECT:
+lib/features/auth/LoginScreen.dart       // Don't use PascalCase for files
+lib/features/products/product-model.dart // Don't use kebab-case
+```
+
+**Important:** Dart uses snake_case for files (unlike TypeScript!)
+
+### Classes: PascalCase
+```dart
+✅ CORRECT:
+class LoginScreen extends StatelessWidget {}
+class ProductModel {}
+class AuthRepository {}
+class GetProductsUseCase {}
+
+❌ INCORRECT:
+class loginScreen {}      // Should be PascalCase
+class product_model {}    // Should be PascalCase
+```
+
+### Variables/Functions: lowerCamelCase
+```dart
+✅ CORRECT:
+final String userName = 'John';
+void fetchProducts() {}
+bool isLoading = false;
+
+❌ INCORRECT:
+final String UserName = 'John';  // Should be lowerCamelCase
+void FetchProducts() {}          // Should be lowerCamelCase
+```
+
+### Constants: lowerCamelCase (Dart convention!)
+```dart
+✅ CORRECT:
+const String apiBaseUrl = 'https://api.bmoi.com';
+const int maxRetries = 3;
+
+❌ INCORRECT:
+const String API_BASE_URL = 'https://...';  // Dart uses lowerCamelCase, not UPPER_SNAKE_CASE
+```
+
+### Private Members: _prefix
+```dart
+✅ CORRECT:
+final String _apiKey;
+void _processData() {}
+
+❌ INCORRECT:
+final String apiKey;  // Should mark private members with _
+```
+
+## Clean Architecture Layers
+
+```dart
+lib/
+├── features/
+│   └── auth/
+│       ├── data/            # Data layer (models, repositories impl, data sources)
+│       │   ├── models/      # JSON models (Freezed)
+│       │   ├── repositories/# Repository implementations
+│       │   └── data_sources/# API clients, local storage
+│       ├── domain/          # Domain layer (entities, repositories interface, use cases)
+│       │   ├── entities/    # Pure Dart classes
+│       │   ├── repositories/# Repository interfaces (abstract)
+│       │   └── usecases/    # Business logic
+│       └── presentation/    # Presentation layer (UI, providers)
+│           ├── providers/   # Riverpod providers
+│           ├── screens/     # Full screens
+│           └── widgets/     # Feature-specific widgets
+```
+
+**Flow:** Presentation → UseCase → Repository → DataSource
+
+## Code Standards
+
+### Freezed Model (Data Layer)
+
+```dart
+// File: user_model.dart
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'user_model.freezed.dart';
+part 'user_model.g.dart';
+
+@freezed
+class UserModel with _$UserModel {
+  const factory UserModel({
+    required String id,
+    required String email,
+    required String name,
+  }) = _UserModel;
+
+  factory UserModel.fromJson(Map<String, dynamic> json) =>
+      _$UserModelFromJson(json);
+}
+```
+
+### Repository Interface (Domain)
+
+```dart
+// File: auth_repository.dart
+import 'package:dartz/dartz.dart';
+
+abstract class AuthRepository {
+  Future<Either<Failure, User>> login({
+    required String email,
+    required String password,
+  });
+}
+```
+
+### Repository Implementation (Data)
+
+```dart
+// File: auth_repository_impl.dart
+class AuthRepositoryImpl implements AuthRepository {
+  final AuthRemoteDataSource remoteDataSource;
+
+  const AuthRepositoryImpl({required this.remoteDataSource});
+
+  @override
+  Future<Either<Failure, User>> login({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final userModel = await remoteDataSource.login(email, password);
+      return Right(userModel.toEntity());
+    } catch (e) {
+      return Left(NetworkFailure(e.toString()));
+    }
+  }
+}
+```
+
+### Use Case (Domain)
+
+```dart
+// File: login_usecase.dart
+class LoginUseCase {
+  final AuthRepository repository;
+
+  const LoginUseCase(this.repository);
+
+  Future<Either<Failure, User>> call({
+    required String email,
+    required String password,
+  }) {
+    return repository.login(email: email, password: password);
+  }
+}
+```
+
+### Riverpod Provider (Presentation)
+
+```dart
+// File: auth_provider.dart
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'auth_provider.g.dart';
+
+@riverpod
+class Auth extends _$Auth {
+  @override
+  AsyncValue<User?> build() {
+    return const AsyncValue.data(null);
+  }
+
+  Future<void> login(String email, String password) async {
+    state = const AsyncValue.loading();
+    final result = await ref.read(loginUseCaseProvider).call(
+      email: email,
+      password: password,
+    );
+
+    state = result.fold(
+      (failure) => AsyncValue.error(failure, StackTrace.current),
+      (user) => AsyncValue.data(user),
+    );
+  }
+}
+```
+
+### Screen Widget
+
+```dart
+// File: login_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+class LoginScreen extends ConsumerWidget {
+  const LoginScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: authState.when(
+        data: (user) => user != null ? const Text('Logged in') : LoginForm(),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => Center(child: Text('Error: $error')),
+      ),
+    );
+  }
+}
+```
+
+## Dio Setup with Multi-Tenant Support
+
+```dart
+// Automatically inject JWT + X-Tenant-ID headers
+class AuthInterceptor extends Interceptor {
+  final FlutterSecureStorage secureStorage;
+
+  AuthInterceptor(this.secureStorage);
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+    final token = await secureStorage.read(key: 'jwt_token');
+    final tenantId = await secureStorage.read(key: 'tenant_id');
+
+    if (token != null) {
+      options.headers['Authorization'] = 'Bearer $token';
+    }
+
+    if (tenantId != null) {
+      options.headers['X-Tenant-ID'] = tenantId;
+    }
+
+    handler.next(options);
+  }
+}
+```
+
+## Error Handling
+
+```dart
+// Use sealed classes for failures
+sealed class Failure {
+  final String message;
+  const Failure(this.message);
+}
+
+class NetworkFailure extends Failure {
+  const NetworkFailure(super.message);
+}
+
+class CacheFailure extends Failure {
+  const CacheFailure(super.message);
+}
+
+// Use Either for error handling
+Future<Either<Failure, List<Product>>> getProducts() async {
+  try {
+    final products = await api.getProducts();
+    return Right(products);
+  } on NetworkException catch (e) {
+    return Left(NetworkFailure(e.message));
+  }
+}
+```
+
+## Import Order
+
+```dart
+// 1. Dart imports
+import 'dart:async';
+
+// 2. Flutter imports
+import 'package:flutter/material.dart';
+
+// 3. Package imports
+import 'package:riverpod/riverpod.dart';
+import 'package:dio/dio.dart';
+
+// 4. Project imports
+import 'package:bmoi_mobile_app/core/network/api_client.dart';
+```
+
+## Common Mistakes to Avoid
+
+### ❌ NEVER
+
+```dart
+// ❌ Don't use PascalCase for file names
+LoginScreen.dart  // WRONG! Use login_screen.dart
+
+// ❌ Don't use UPPER_SNAKE_CASE for constants in Dart
+const String API_URL = 'https://...';  // WRONG! Use apiUrl
+
+// ❌ Don't use dynamic types
+dynamic data;  // WRONG! Always type
+
+// ❌ Don't ignore null safety
+String? name;
+print(name.length);  // WRONG! Could be null
+
+// ❌ Don't skip architecture layers
+// Presentation calling DataSource directly is WRONG
+// Always go: Presentation → UseCase → Repository → DataSource
+
+// ❌ Don't use BuildContext across async gaps
+void fetchData(BuildContext context) async {
+  await Future.delayed(Duration(seconds: 1));
+  Navigator.push(context, ...);  // WRONG!
+}
+```
+
+### ✅ ALWAYS
+
+```dart
+// ✅ Use snake_case for files
+login_screen.dart
+
+// ✅ Use lowerCamelCase for constants
+const String apiUrl = 'https://...';
+
+// ✅ Type everything
+List<Product> products = [];
+
+// ✅ Handle nulls safely
+String? name;
+print(name?.length ?? 0);
+
+// ✅ Follow architecture layers
+Presentation → UseCase → Repository → DataSource
+
+// ✅ Check context validity
+void fetchData(BuildContext context) async {
+  await Future.delayed(Duration(seconds: 1));
+  if (context.mounted) {  // CORRECT
+    Navigator.push(context, ...);
+  }
+}
+```
+
+## Testing Standards
+
+### Unit Test (Use Case)
+
+```dart
+// File: login_usecase_test.dart
+void main() {
+  late LoginUseCase useCase;
+  late MockAuthRepository mockRepository;
+
+  setUp(() {
+    mockRepository = MockAuthRepository();
+    useCase = LoginUseCase(mockRepository);
+  });
+
+  test('should return User on successful login', () async {
+    // Arrange
+    when(mockRepository.login(email: any, password: any))
+        .thenAnswer((_) async => Right(tUser));
+
+    // Act
+    final result = await useCase(email: tEmail, password: tPassword);
+
+    // Assert
+    expect(result, Right(tUser));
+    verify(mockRepository.login(email: tEmail, password: tPassword));
+  });
+}
+```
+
+### Widget Test
+
+```dart
+// File: login_screen_test.dart
+void main() {
+  testWidgets('should display login form', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(home: LoginScreen()),
+      ),
+    );
+
+    expect(find.text('Login'), findsOneWidget);
+    expect(find.byType(TextField), findsNWidgets(2));
+  });
+}
+```
+
+## Before Committing
+
+1. ✅ Run `flutter analyze` - No warnings/errors
+2. ✅ Run `flutter test` - All tests pass
+3. ✅ Generate code: `dart run build_runner build`
+4. ✅ Check file names are snake_case
+5. ✅ Verify Clean Architecture layers respected
+6. ✅ Ensure null safety handled
+7. ✅ Check that multi-tenant headers are injected
+
+## Project Structure
+
+```
+lib/
+├── core/           # Shared (network, storage, theme)
+├── features/       # Features (auth, products, orders)
+├── shared/         # Reusable widgets/services
+└── main.dart
+```
+
+## AI Assistant Memory
+
+**Always remember:**
+- **Framework:** Flutter 3.19+ (NOT React Native)
+- **Language:** Dart 3.3+ (null safety)
+- **State:** Riverpod (code generation)
+- **Architecture:** Clean Architecture (feature-first)
+- **File naming:** snake_case (e.g., `login_screen.dart`)
+- **Class naming:** PascalCase (e.g., `LoginScreen`)
+- **Variable naming:** lowerCamelCase (e.g., `userName`)
+- **Constant naming:** lowerCamelCase (e.g., `const apiUrl`)
+- **Multi-tenant:** Auto-inject X-Tenant-ID header
+- **Offline:** Cache-first strategy
+
+---
+
+For detailed documentation, see `.claude/context.md` and `.docs/` folder.

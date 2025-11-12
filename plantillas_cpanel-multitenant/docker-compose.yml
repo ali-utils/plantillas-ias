@@ -1,0 +1,164 @@
+# ============================================
+# Docker Compose - bMOI CPanel Multi-Tenant BO
+# Configuración para desarrollo y producción
+# ============================================
+
+services:
+  # ==========================================
+  # Frontend - Desarrollo
+  # ==========================================
+  frontend-dev:
+    container_name: bmoi-frontend-dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    ports:
+      - "3000:3000"
+    volumes:
+      # Montar código fuente para hot reload
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./index.html:/app/index.html
+      - ./vite.config.ts:/app/vite.config.ts
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./tailwind.config.js:/app/tailwind.config.js
+      - ./.env.local:/app/.env.local
+      # Excluir node_modules (usar del container)
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:5000/api/v1
+      - VITE_APP_NAME=bMOI Panel de Control
+      - VITE_TENANT_HEADER=X-Tenant-ID
+      - CHOKIDAR_USEPOLLING=true
+    networks:
+      - bmoi-network
+    profiles:
+      - dev
+    stdin_open: true
+    tty: true
+
+  # ==========================================
+  # Frontend - Producción
+  # ==========================================
+  frontend-prod:
+    container_name: bmoi-frontend-prod
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    networks:
+      - bmoi-network
+    profiles:
+      - prod
+    restart: unless-stopped
+
+  # ==========================================
+  # Backend API (Mock/Desarrollo)
+  # Reemplazar cuando tengas backend real
+  # ==========================================
+  backend:
+    container_name: bmoi-backend
+    image: mockoon/cli:latest
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./docker/mockoon:/data
+    command: ["-d", "/data/api-mock.json", "-p", "5000"]
+    networks:
+      - bmoi-network
+    profiles:
+      - dev
+    restart: unless-stopped
+
+  # ==========================================
+  # PostgreSQL Database (Desarrollo)
+  # ==========================================
+  postgres:
+    container_name: bmoi-postgres
+    image: postgres:15-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: bmoi_db
+      POSTGRES_USER: bmoi_user
+      POSTGRES_PASSWORD: bmoi_password_dev
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - bmoi-network
+    profiles:
+      - dev
+      - fullstack
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bmoi_user -d bmoi_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # Redis Cache (Desarrollo)
+  # ==========================================
+  redis:
+    container_name: bmoi-redis
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - bmoi-network
+    profiles:
+      - dev
+      - fullstack
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ==========================================
+  # Nginx Reverse Proxy (Producción)
+  # ==========================================
+  nginx:
+    container_name: bmoi-nginx
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend-prod
+    networks:
+      - bmoi-network
+    profiles:
+      - prod
+    restart: unless-stopped
+
+# ==========================================
+# Networks
+# ==========================================
+networks:
+  bmoi-network:
+    driver: bridge
+    name: bmoi-network
+
+# ==========================================
+# Volumes
+# ==========================================
+volumes:
+  postgres_data:
+    name: bmoi-postgres-data
+  redis_data:
+    name: bmoi-redis-data
